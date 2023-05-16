@@ -12,7 +12,12 @@ In this project, you will accomplish the following tasks:
 ## Project Steps:
 ### Step 1: Training and deployment on Sagemaker
 
-- Created sagemaker notebook instance I have used ml.t3.medium as this is suffiecint to run my notebook.
+-  Created sagemaker notebook instance, I selected an ml.t3.medium instance for the notebook. This decision was based on a few key considerations:
+    - The ml.t3.medium instance type is a balanced choice offering a good blend of memory, CPU, and cost efficiency. It comes with 2 virtual CPUs and 4GB of memory, making it a suitable choice for running Jupyter notebooks and conducting exploratory data analysis. This is generally sufficient for most data pre-processing tasks and developing the model before training.
+
+    - It's worth noting that the actual model training is performed on a separate, usually more powerful instance type which is chosen based on the requirements of the specific machine learning task. This allows us to use a less compute-intensive (and less expensive) instance for the notebook without affecting the model training performance.
+
+    - Similarly, model endpoints, which are used for making predictions in production, also run on separate instances. This setup ensures that each component of the system is running on an instance that is suited to its specific needs, providing a balance between performance and cost.
 
 ![notebook](./screenshots/notebook.png)
 
@@ -34,9 +39,20 @@ In this project, you will accomplish the following tasks:
 
 ### Step 2: EC2 Training
 
-- Model training can also be carried out on an EC2 instance. For this purpose, I opted for an Ubuntu 20.04 that already had the necessary libraries installed. I chose the `g4dn.xlarge` instance, as it comes equipped with the latest version of PyTorch.
+- Model training can also be carried out on an EC2 instance. For this purpose, I opted for an Ubuntu 20.04 that already had the necessary libraries installed. I chose the `g4dn.xlarge` instance, as it comes equipped with the latest version of PyTorch. This choice was based on multiple factors including cost, computing power, launch speed, and GPU availability.
+
+    - The g4dn.xlarge instance provides a robust balance between cost and computing power. It offers 4 vCPUs and 16GB of memory, which are more than adequate for the majority of model training tasks. Additionally, it's equipped with a powerful NVIDIA Tesla T4 GPU, which can significantly accelerate training times for deep learning models. The instance also comes pre-installed with the latest version of PyTorch, which further simplifies the setup process.
+
+    - As for launch speed, g4dn.xlarge instances are part of the AWS Nitro System, which means they can be launched quickly and offer nearly bare-metal performance. This allows for faster iterative development and testing cycles.
+
+- Regarding the choice of different instance types for the SageMaker model endpoints and the EC2 instance, the primary reason is that these two components serve different roles and have different requirements.
+
+    - The ml.m5.xlarge instance used for the model endpoints is optimized for memory-intensive tasks and offers a balance of compute, memory, and network resources. This makes it a good choice for serving predictions, which typically require less compute power than training but can benefit from the additional memory for caching and other tasks.
+
+    - On the other hand, the g4dn.xlarge instance used for the EC2 training machine is part of the GPU instance family, optimized for compute-intensive tasks and ideal for machine learning due to the presence of a powerful GPU. This makes it a more suitable choice for training complex machine learning models.
 
 ![ec2](./screenshots/ec2.png)
+
 
 - The image above illustrates an EC2 instance executing the `ec2train1.py` script to train the model.
 
@@ -80,23 +96,31 @@ Response
 
 - Concurrency
 
-```
-reserved instances: 5/1000
-provisioned instances: 3/5
-```
+    - Concurrency refers to the number of simultaneous requests that an instance can handle. For example, in our setup, we have a target value of 3. This means that if there are three simultaneous requests, our instance will handle them concurrently. However, if there are more than three, SageMaker will initiate auto-scaling to create additional instances.
+
+    ```
+    reserved instances: 5/1000
+    provisioned instances: 3/5
+    ```
+
+    - As for the reserved instances and provisioned instances parameters, these reflect the number of instances that we have reserved and provisioned out of the maximum limit. In our case, we have reserved 5 instances out of a limit of 1000, and provisioned 3 out of these 5. Reserving instances can provide cost savings for predictable workloads, while provisioned instances are those currently available for use.
 
 ![concurrency](./screenshots/concurrency.png)
 
 - Auto-scaling
+    - Auto-scaling in SageMaker works within a predefined range of minimum and maximum instances. In our case, we set the minimum instances to 1 and the maximum instances to 3. This means that there will always be at least one instance available, and up to two additional instances can be spun up if the traffic demand increases.
 
-Sagemaker endpoints require automatic scaling to respond to high traffic. 
+    ```
+    minimum instances: 1
+    maximum instances: 3
+    target value: 3    // number of simulataneous requests which will trigger scaling
+    scale-in time: 300 s
+    scale-out time: 300 s
+    ```
 
-```
-minimum instances: 1
-maximum instances: 3
-target value: 3    // number of simulataneous requests which will trigger scaling
-scale-in time: 300 s
-scale-out time: 300 s
-```
+    - The scale-in and scale-out parameters are used to determine when to add or remove instances. Scale-out time, set to 300 seconds in our case, is the period after which an additional instance will be initiated if the number of simultaneous requests consistently exceeds the target value. Conversely, scale-in time, also set to 300 seconds, is the period after which an instance will be terminated if the number of simultaneous requests consistently falls below the target value.
+
+    - By configuring auto-scaling, we can ensure that our SageMaker endpoint can handle high traffic volumes while also keeping costs under control. When traffic is low, instances will be scaled in to save costs. When traffic increases, instances will be scaled out to maintain performance. This dynamic adjustment allows us to balance cost and performance effectively.
+
 
 ![auto](./screenshots/auto.png)
